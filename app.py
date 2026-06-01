@@ -47,20 +47,25 @@ if not st.session_state.authenticated:
     st.text_input("Password:", type="password", key="password", on_change=check_password)
     st.stop()
 
-# --- MENU DI NAVIGAZIONE SUPERIORE (Ideale per Mobile) ---
-menu = st.radio("📂 Navigazione", ["Nuova Simulazione / Calcolatore", "📁 Impianti Simulati (Archivio)"], horizontal=True)
+# ---------------------------------------------------------
+# MENU LATERALE A SCOMPARSA (Ottimizzato per Mobile)
+# ---------------------------------------------------------
+with st.sidebar:
+    st.header("📁 Menu Gestionale")
+    menu = st.radio("Seleziona Azione:", ["Nuova Simulazione", "Archivio Impianti"], index=0)
+    st.markdown("---")
 
 # ---------------------------------------------------------
 # SCHERMATA 1: NUOVA SIMULAZIONE / CALCOLATORE
 # ---------------------------------------------------------
-if menu == "Nuova Simulazione / Calcolatore":
+if menu == "Nuova Simulazione":
     st.title("📊 Simulatore Risparmio Fotovoltaico")
     
-    # Campo Nome Richiesto
+    # Campo Nome principale in alto
     nome_cliente = st.text_input("👤 Nome Cliente / Azienda o Impianto", placeholder="Es. Rossi SRL - Milano")
 
     st.markdown("---")
-    st.subheader("⚙️ Inserimento Dati Tecnico-Economici")
+    st.subheader("⚙️ Inserimento Dati")
 
     with st.expander("Fasce Consumo ANNUALI (kWh/anno)", expanded=True):
         f1_anno = st.number_input("Consumo in F1", value=15000, step=1000)
@@ -78,6 +83,29 @@ if menu == "Nuova Simulazione / Calcolatore":
     with st.expander("Accordo Diritto di Superficie", expanded=False):
         canone_superficie_anno = st.number_input("Canone Annuale (€/anno)", value=1500, step=100)
         durata_contratto = st.number_input("Durata Contratto (Anni)", value=20, step=1)
+
+    # Spostiamo i pulsanti di gestione nel menu laterale per non distrarre il cliente sulla pagina
+    with st.sidebar:
+        st.subheader("💾 Gestione Scheda")
+        if st.button("💾 SALVA SIMULAZIONE", use_container_width=True, type="primary"):
+            if nome_cliente.strip() == "":
+                st.error("⚠️ Inserisci un nome prima!")
+            else:
+                payload = {
+                    "f1": f1_anno, "f2": f2_anno, "f3": f3_anno,
+                    "kwp": kwp, "prod": prod_specifica,
+                    "tariffa_c": tariffa_cliente_attuale, "tariffa_v": tariffa_vendita_tua,
+                    "canone": canone_superficie_anno, "durata": durata_contratto
+                }
+                salva_simulazione(nome_cliente, payload)
+                st.success(f"Salvata: {nome_cliente}")
+
+        if st.button("🗑️ ELIMINA SIMULAZIONE", use_container_width=True):
+            if nome_cliente.strip() == "":
+                st.warning("Scrivi il nome da cancellare.")
+            else:
+                elimina_simulazione(nome_cliente)
+                st.success(f"Rimossa: {nome_cliente}")
 
     # --- MATEMATICA E CALCOLI ---
     ore = np.arange(0, 24)
@@ -104,46 +132,20 @@ if menu == "Nuova Simulazione / Calcolatore":
     autoconsumo_anno = (np.sum(autoconsumo_feriale_giorno) * 261) + (np.sum(autoconsumo_weekend_giorno) * 104)
     
     if autoconsumo_anno > produzione_totale_anno:
-        autoconsumo_anno = production_totale_anno
+        autoconsumo_anno = produzione_totale_anno
 
     risparmio_energetico_anno = autoconsumo_anno * (tariffa_cliente_attuale - tariffa_vendita_tua)
     guadagno_totale_cliente_anno = risparmio_energetico_anno + canone_superficie_anno
     vantaggio_cumulato_cliente_totale = guadagno_totale_cliente_anno * durata_contratto
 
-    # --- SEZIONE AZIONI (SALVA / ELIMINA) ---
-    st.markdown("---")
-    col_btn1, col_btn2 = st.columns(2)
-    
-    with col_btn1:
-        if st.button("💾 SALVA SIMULAZIONE", use_container_width=True, type="primary"):
-            if nome_cliente.strip() == "":
-                st.error("⚠️ Inserisci un nome per poter salvare la simulazione!")
-            else:
-                payload = {
-                    "f1": f1_anno, "f2": f2_anno, "f3": f3_anno,
-                    "kwp": kwp, "prod": prod_specifica,
-                    "tariffa_c": tariffa_cliente_attuale, "tariffa_v": tariffa_vendita_tua,
-                    "canone": canone_superficie_anno, "durata": durata_contratto
-                }
-                salva_simulazione(nome_cliente, payload)
-                st.success(f"✅ Simulazione '{nome_cliente}' salvata con successo!")
-
-    with col_btn2:
-        if st.button("🗑️ ELIMINA QUESTA SIMULAZIONE", use_container_width=True):
-            if nome_cliente.strip() == "":
-                st.warning("Nessun nome inserito da eliminare.")
-            else:
-                elimina_simulazione(nome_cliente)
-                st.success(f"🗑️ Se esisteva, la simulazione '{nome_cliente}' è stata rimossa.")
-
-    # --- SEZIONE RISULTATI (Grafica identica a prima) ---
+    # --- SEZIONE RISULTATI CLIENTE ---
     st.markdown("---")
     st.subheader("🎯 Benefici Economici per il Cliente")
     tab_annuale, tab_totale, tab_grafici = st.tabs(["📅 Vantaggio Annuale", "🚀 Vantaggio nei Anni", "📈 Curve di Carico"])
 
     with tab_annuale:
         st.info(f"**GUADAGNO + RISPARMIO ANNUALE:**\n### € {guadagno_totale_cliente_anno:.2f} / anno")
-        st.write(f"• **Risparmio in bolletta:** € {risparmio_energetico_anno:.2f}/anno")
+        st.write(f"• **Risparmio sulla bolletta:** € {risparmio_energetico_anno:.2f}/anno")
         st.write(f"• **Entrata fissa da Diritto di Superficie:** € {canone_superficie_anno:.2f}/anno")
 
     with tab_totale:
@@ -166,22 +168,21 @@ if menu == "Nuova Simulazione / Calcolatore":
 # ---------------------------------------------------------
 # SCHERMATA 2: ARCHIVIO IMPIANTI SIMULATI
 # ---------------------------------------------------------
-elif menu == "📁 Impianti Simulati (Archivio)":
+elif menu == "Archivio Impianti":
     st.title("📁 Archivio Impianti Simulati")
     simulazioni = carica_simulazioni()
 
     if not simulazioni:
-        st.info("L'archivio è vuoto. Salva una simulazione nella prima scheda per vederla apparire qui.")
+        st.info("L'archivio è vuoto. Apri il menu laterale, seleziona 'Nuova Simulazione' e salvala per vederla qui.")
     else:
-        st.write("Seleziona una simulazione salvata per visualizzare i dettagli o eliminarla.")
+        st.write("Seleziona una simulazione salvata dal menu a tendina qui sotto.")
         
-        # Selectbox per scegliere il cliente salvato
         scelta_cliente = st.selectbox("Seleziona Cliente:", list(simulazioni.keys()))
         
         if scelta_cliente:
             d = simulazioni[scelta_cliente]
             
-            # Calcoli al volo basati sui dati recuperati dal file salvato
+            # Ricalcolo rapido per l'archivio
             ore = np.arange(0, 24)
             f1_m = d["f1"] / 12
             f2_m = d["f2"] / 12
@@ -208,7 +209,6 @@ elif menu == "📁 Impianti Simulati (Archivio)":
             guad_a = risp_a + d["canone"]
             tot_a = guad_a * d["durata"]
 
-            # Mostra i risultati economici del cliente selezionato
             st.markdown("---")
             st.success(f"### Dati Economici Riservati: {scelta_cliente}")
             
@@ -222,9 +222,10 @@ elif menu == "📁 Impianti Simulati (Archivio)":
             }
             st.table(pd.DataFrame(dati_tab_salvata))
 
-            # Tasto Elimina all'interno dell'Archivio
-            st.markdown("---")
-            if st.button(f"🗑️ Elimina definitivamente '{scelta_cliente}'", type="secondary", use_container_width=True):
-                elimina_simulazione(scelta_cliente)
-                st.success(f"Impianto '{scelta_cliente}' eliminato correttamente!")
-                st.rerun() # Forza l'app a rinfrescarsi per aggiornare il menu a tendina
+            # Aggiungiamo il tasto cancella anche nella sidebar quando siamo in modalità archivio
+            with st.sidebar:
+                st.subheader("🗑️ Azione Archivio")
+                if st.button(f"🗑️ ELIMINA DEFINITIVAMENTE", type="secondary", use_container_width=True):
+                    elimina_simulazione(scelta_cliente)
+                    st.success(f"Eliminato!")
+                    st.rerun()
