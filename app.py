@@ -36,7 +36,7 @@ f3 = st.sidebar.number_input("Consumo in F3 (kWh)", value=800)
 
 st.sidebar.header("2. Dati Impianto Fotovoltaico")
 kwp = st.sidebar.number_input("Potenza Impianto (kWp)", value=6.0)
-pr = st.sidebar.slider("Performance Ratio (PR)", 0.70, 0.90, 0.80)
+pr = st.sidebar.slider("Performance Ratio (PR)", 0.90, 1.00, 1.10)
 ore_equivalenti = st.sidebar.number_input("Ore di sole equivalenti giornaliere medie", value=3.5)
 
 st.sidebar.header("3. Tariffe ed Economia")
