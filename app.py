@@ -11,7 +11,7 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 def check_password():
-    if st.session_state["password"] == "FvPpa2026": 
+    if st.session_state["password"] == "sama2026": 
         st.session_state.authenticated = True
         del st.session_state["password"]  
     else:
