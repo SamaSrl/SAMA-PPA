@@ -91,7 +91,7 @@ st.subheader("🎯 Benefici Economici per il Cliente")
 
 tab_annuale, tab_totale, tab_grafici = st.tabs([
     "📅 Vantaggio Annuale", 
-    "🚀 Vantaggio nei Anni", 
+    "🚀 Vantaggio negli Anni", 
     "📈 Curve di Carico"
 ])
 
