@@ -1,14 +1,3 @@
-Ecco il codice ottimizzato. Per renderlo perfetto su mobile, ho applicato tre accorgimenti fondamentali:
-
-Layout compatto a colonna singola: Su smartphone le colonne affiancate si stringono troppo. Ho riorganizzato la pagina in modo che i grafici e i dati si impilino verticalmente in modo fluido.
-
-Grafici Plotly "Responsive": Ho configurato la legenda dei grafici in alto (anziché a destra) per evitare che rubi spazio prezioso sullo schermo del telefono.
-
-Metriche leggibili: I risultati economici ora appaiono come schede grandi e facili da leggere anche sotto il sole durante un sopralluogo.
-
-Sostituisci il codice nel tuo file app.py su GitHub con questo:
-
-Python
 import streamlit as st
 import numpy as np
 import pandas as pd
