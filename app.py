@@ -2,9 +2,33 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import json
+import os
 
-# Configurazione ottimizzata per Mobile: layout fluido e compatto
-st.set_page_config(page_title="Simulatore Benefici Cliente FV", layout="wide")
+# Configurazione Mobile-First
+st.set_page_config(page_title="Gestione PPA Fotovoltaico", layout="wide")
+
+# --- FILE DI MEMORIA LOCALE ---
+DB_FILE = "simulazioni.json"
+
+def carica_simulazioni():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def salva_simulazione(nome, dati):
+    simulazioni = carica_simulazioni()
+    simulazioni[nome] = dati
+    with open(DB_FILE, "w") as f:
+        json.dump(simulazioni, f, indent=4)
+
+def elimina_simulazione(nome):
+    simulazioni = carica_simulazioni()
+    if nome in simulazioni:
+        del simulazioni[nome]
+        with open(DB_FILE, "w") as f:
+            json.dump(simulazioni, f, indent=4)
 
 # --- SISTEMA DI AUTENTICAZIONE ---
 if "authenticated" not in st.session_state:
@@ -21,112 +45,186 @@ def check_password():
 if not st.session_state.authenticated:
     st.title("🔒 Accesso Riservato")
     st.text_input("Password:", type="password", key="password", on_change=check_password)
-    st.stop() 
+    st.stop()
 
-# --- TITOLO PRINCIPALE ---
-st.title("📊 Simulatore Risparmio Fotovoltaico")
-st.write("Calcola il vantaggio economico totale per il cliente finale.")
+# --- MENU DI NAVIGAZIONE SUPERIORE (Ideale per Mobile) ---
+menu = st.radio("📂 Navigazione", ["Nuova Simulazione / Calcolatore", "📁 Impianti Simulati (Archivio)"], horizontal=True)
 
-# --- INSERIMENTO DATI UNIFICATO (Tutto nella pagina principale, ottimizzato smartphone) ---
-st.subheader("⚙️ Inserimento Dati")
-
-with st.expander("📝 1. Consumi ANNUALI del Cliente (kWh/anno)", expanded=True):
-    f1_anno = st.number_input("Consumo Annuo in F1", value=15000, step=1000)
-    f2_anno = st.number_input("Consumo Annuo in F2", value=12000, step=1000)
-    f3_anno = st.number_input("Consumo Annuo in F3", value=10000, step=1000)
-
-with st.expander("☀️ 2. Dati Impianto Fotovoltaico", expanded=False):
-    kwp = st.number_input("Potenza Impianto Proposto (kWp)", value=20.0, step=1.0)
-    prod_specifica = st.number_input("Produttività Specifica Annuale (kWh/kWp)", value=1300, step=50)
-
-with st.expander("💶 3. Tariffe Energia (€/kWh)", expanded=False):
-    tariffa_cliente_attuale = st.number_input("Tariffa attuale in bolletta del Cliente", value=0.28, step=0.01)
-    tariffa_vendita_tua = st.number_input("Nuova tariffa energia da Fotovoltaico", value=0.16, step=0.01)
-
-with st.expander("🤝 4. Accordo Diritto di Superficie / Affitto", expanded=False):
-    canone_superficie_anno = st.number_input("Canone Annuale riconosciuto al Cliente (€/anno)", value=1500, step=100)
-    durata_contratto = st.number_input("Durata del Contratto (Anni)", value=20, step=1)
-
-# --- ELABORAZIONE MATEMATICA (Modello feriale + weekend) ---
-ore = np.arange(0, 24)
-f1_mese = f1_anno / 12
-f2_mese = f2_anno / 12
-f3_mese = f3_anno / 12
-
-# Profilo Consumo Giorno Feriale (261 giorni/anno)
-profilo_consumo_feriale = np.zeros(24)
-for h in ore:
-    if 8 <= h < 19: profilo_consumo_feriale[h] = f1_mese / 21 / 11 
-    elif (7 <= h < 8) or (19 <= h < 23): profilo_consumo_feriale[h] = f2_mese / 21 / 5
-    else: profilo_consumo_feriale[h] = f3_mese / 21 / 8
-
-# Profilo Consumo Weekend (104 giorni/anno) - Ridotto all'20% del feriale
-profilo_consumo_weekend = profilo_consumo_feriale * 0.20
-
-# Profilo Produzione FV Giornaliero Medio
-produzione_totale_anno = kwp * prod_specifica
-produzione_giorno_medio = produzione_totale_anno / 365
-profilo_produzione = np.zeros(24)
-for h in ore:
-    if 6 <= h <= 18:
-        profilo_produzione[h] = (produzione_giorno_medio / 7.5) * np.sin(np.pi * (h - 6) / 12) ** 2
-
-# Calcolo Autoconsumo (Energia che il cliente compra dal FV risparmiando)
-autoconsumo_feriale_giorno = np.minimum(profilo_consumo_feriale, profilo_produzione)
-autoconsumo_weekend_giorno = np.minimum(profilo_consumo_weekend, profilo_produzione)
-
-autoconsumo_anno = (np.sum(autoconsumo_feriale_giorno) * 261) + (np.sum(autoconsumo_weekend_giorno) * 104)
-
-if autoconsumo_anno > produzione_totale_anno:
-    autoconsumo_anno = produzione_totale_anno
-
-# --- CALCOLO VANTAGGI ECONOMICI CLIENTE ---
-risparmio_energetico_anno = autoconsumo_anno * (tariffa_cliente_attuale - tariffa_vendita_tua)
-guadagno_totale_cliente_anno = risparmio_energetico_anno + canone_superficie_anno
-vantaggio_cumulato_cliente_totale = guadagno_totale_cliente_anno * durata_contratto
-
-# --- SEZIONE RISULTATI (Visualizzazione a TAB, pulita su Mobile) ---
-st.markdown("---")
-st.subheader("🎯 Benefici Economici per il Cliente")
-
-tab_annuale, tab_totale, tab_grafici = st.tabs([
-    "📅 Vantaggio Annuale", 
-    "🚀 Vantaggio negli Anni", 
-    "📈 Curve di Carico"
-])
-
-with tab_annuale:
-    st.info(f"**GUADAGNO + RISPARMIO ANNUALE:**\n### € {guadagno_totale_cliente_anno:.2f} / anno")
-    st.write(f"• **Risparmio sulla bolletta:** € {risparmio_energetico_anno:.2f}/anno (grazie a {autoconsumo_anno:.0f} kWh autoconsumati)")
-    st.write(f"• **Entrata fissa da Diritto di Superficie:** € {canone_superficie_anno:.2f}/anno")
-
-with tab_totale:
-    st.warning(f"**BENEFICIO ECONOMICO TOTALE CONTRATTO:**\n### € {vantaggio_cumulato_cliente_totale:.2f}")
-    st.write(f"Valore economico complessivo generato per il cliente nei **{durata_contratto} anni** di durata del diritto di superficie, senza alcun costo di investimento iniziale.")
+# ---------------------------------------------------------
+# SCHERMATA 1: NUOVA SIMULAZIONE / CALCOLATORE
+# ---------------------------------------------------------
+if menu == "Nuova Simulazione / Calcolatore":
+    st.title("📊 Simulatore Risparmio Fotovoltaico")
     
-    # Tabella riassuntiva pulita
+    # Campo Nome Richiesto
+    nome_cliente = st.text_input("👤 Nome Cliente / Azienda o Impianto", placeholder="Es. Rossi SRL - Milano")
+
     st.markdown("---")
-    dati_tabella = {
-        "Voce di Guadagno": ["Risparmio Energetico Pulito", "Canone Diritto di Superficie", "VALORE TOTALE RISERVATO"],
-        "Su Base Annua": [f"€ {risparmio_energetico_anno:.2f}", f"€ {canone_superficie_anno:.2f}", f"€ {guadagno_totale_cliente_anno:.2f}"],
-        f"Totale su {durata_contratto} Anni": [f"€ {risparmio_energetico_anno * durata_contratto:.2f}", f"€ {canone_superficie_anno * durata_contratto:.2f}", f"€ {vantaggio_cumulato_cliente_totale:.2f}"]
-    }
-    st.table(pd.DataFrame(dati_tabella))
+    st.subheader("⚙️ Inserimento Dati Tecnico-Economici")
 
-with tab_grafici:
-    st.write("Confronto della simulazione dei consumi reali tra i giorni lavorativi e il weekend.")
+    with st.expander("Fasce Consumo ANNUALI (kWh/anno)", expanded=True):
+        f1_anno = st.number_input("Consumo in F1", value=15000, step=1000)
+        f2_anno = st.number_input("Consumo in F2", value=12000, step=1000)
+        f3_anno = st.number_input("Consumo in F3", value=10000, step=1000)
+
+    with st.expander("Dati Impianto Fotovoltaico", expanded=False):
+        kwp = st.number_input("Potenza Impianto (kWp)", value=20.0, step=1.0)
+        prod_specifica = st.number_input("Produttività (kWh/kWp)", value=1300, step=50)
+
+    with st.expander("Tariffe Energia (€/kWh)", expanded=False):
+        tariffa_cliente_attuale = st.number_input("Tariffa attuale Cliente", value=0.28, step=0.01)
+        tariffa_vendita_tua = st.number_input("Nuova tariffa PPA", value=0.16, step=0.01)
+
+    with st.expander("Accordo Diritto di Superficie", expanded=False):
+        canone_superficie_anno = st.number_input("Canone Annuale (€/anno)", value=1500, step=100)
+        durata_contratto = st.number_input("Durata Contratto (Anni)", value=20, step=1)
+
+    # --- MATEMATICA E CALCOLI ---
+    ore = np.arange(0, 24)
+    f1_mese = f1_anno / 12
+    f2_mese = f2_anno / 12
+    f3_mese = f3_anno / 12
+
+    profilo_consumo_feriale = np.zeros(24)
+    for h in ore:
+        if 8 <= h < 19: profilo_consumo_feriale[h] = f1_mese / 21 / 11 
+        elif (7 <= h < 8) or (19 <= h < 23): profilo_consumo_feriale[h] = f2_mese / 21 / 5
+        else: profilo_consumo_feriale[h] = f3_mese / 21 / 8
+
+    profilo_consumo_weekend = profilo_consumo_feriale * 0.20
+    produzione_totale_anno = kwp * prod_specifica
+    produzione_giorno_medio = produzione_totale_anno / 365
+    profilo_produzione = np.zeros(24)
+    for h in ore:
+        if 6 <= h <= 18:
+            profilo_produzione[h] = (produzione_giorno_medio / 7.5) * np.sin(np.pi * (h - 6) / 12) ** 2
+
+    autoconsumo_feriale_giorno = np.minimum(profilo_consumo_feriale, profilo_produzione)
+    autoconsumo_weekend_giorno = np.minimum(profilo_consumo_weekend, profilo_produzione)
+    autoconsumo_anno = (np.sum(autoconsumo_feriale_giorno) * 261) + (np.sum(autoconsumo_weekend_giorno) * 104)
     
-    # Grafico unico ma interattivo per non occupare spazio verticale eccessivo su smartphone
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=ore, y=profilo_consumo_feriale, name="Consumo Feriale (kW)", line=dict(color='#FF4B4B', width=2)))
-    fig.add_trace(go.Scatter(x=ore, y=profilo_consumo_weekend, name="Consumo Weekend (kW)", line=dict(color='#636EFA', width=2, dash='dot')))
-    fig.add_trace(go.Scatter(x=ore, y=profilo_produzione, name="Produzione FV (kW)", line=dict(color='#00CC96', width=2)))
+    if autoconsumo_anno > produzione_totale_anno:
+        autoconsumo_anno = production_totale_anno
+
+    risparmio_energetico_anno = autoconsumo_anno * (tariffa_cliente_attuale - tariffa_vendita_tua)
+    guadagno_totale_cliente_anno = risparmio_energetico_anno + canone_superficie_anno
+    vantaggio_cumulato_cliente_totale = guadagno_totale_cliente_anno * durata_contratto
+
+    # --- SEZIONE AZIONI (SALVA / ELIMINA) ---
+    st.markdown("---")
+    col_btn1, col_btn2 = st.columns(2)
     
-    fig.update_layout(
-        margin=dict(l=10, r=10, t=10, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(title="Ora", tickmode="linear", tick0=0, dtick=4),
-        yaxis=dict(title="Potenza (kW)"),
-        height=300
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    with col_btn1:
+        if st.button("💾 SALVA SIMULAZIONE", use_container_width=True, type="primary"):
+            if nome_cliente.strip() == "":
+                st.error("⚠️ Inserisci un nome per poter salvare la simulazione!")
+            else:
+                payload = {
+                    "f1": f1_anno, "f2": f2_anno, "f3": f3_anno,
+                    "kwp": kwp, "prod": prod_specifica,
+                    "tariffa_c": tariffa_cliente_attuale, "tariffa_v": tariffa_vendita_tua,
+                    "canone": canone_superficie_anno, "durata": durata_contratto
+                }
+                salva_simulazione(nome_cliente, payload)
+                st.success(f"✅ Simulazione '{nome_cliente}' salvata con successo!")
+
+    with col_btn2:
+        if st.button("🗑️ ELIMINA QUESTA SIMULAZIONE", use_container_width=True):
+            if nome_cliente.strip() == "":
+                st.warning("Nessun nome inserito da eliminare.")
+            else:
+                elimina_simulazione(nome_cliente)
+                st.success(f"🗑️ Se esisteva, la simulazione '{nome_cliente}' è stata rimossa.")
+
+    # --- SEZIONE RISULTATI (Grafica identica a prima) ---
+    st.markdown("---")
+    st.subheader("🎯 Benefici Economici per il Cliente")
+    tab_annuale, tab_totale, tab_grafici = st.tabs(["📅 Vantaggio Annuale", "🚀 Vantaggio nei Anni", "📈 Curve di Carico"])
+
+    with tab_annuale:
+        st.info(f"**GUADAGNO + RISPARMIO ANNUALE:**\n### € {guadagno_totale_cliente_anno:.2f} / anno")
+        st.write(f"• **Risparmio in bolletta:** € {risparmio_energetico_anno:.2f}/anno")
+        st.write(f"• **Entrata fissa da Diritto di Superficie:** € {canone_superficie_anno:.2f}/anno")
+
+    with tab_totale:
+        st.warning(f"**BENEFICIO ECONOMICO TOTALE CONTRATTO:**\n### € {vantaggio_cumulato_cliente_totale:.2f}")
+        dati_tabella = {
+            "Voce di Guadagno": ["Risparmio Energetico Pulito", "Canone Diritto di Superficie", "VALORE TOTALE RISERVATO"],
+            "Su Base Annua": [f"€ {risparmio_energetico_anno:.2f}", f"€ {canone_superficie_anno:.2f}", f"€ {guadagno_totale_cliente_anno:.2f}"],
+            f"Totale su {durata_contratto} Anni": [f"€ {risparmio_energetico_anno * durata_contratto:.2f}", f"€ {canone_superficie_anno * durata_contratto:.2f}", f"€ {vantaggio_cumulato_cliente_totale:.2f}"]
+        }
+        st.table(pd.DataFrame(dati_tabella))
+
+    with tab_grafici:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=ore, y=profilo_consumo_feriale, name="Consumo Feriale (kW)", line=dict(color='#FF4B4B', width=2)))
+        fig.add_trace(go.Scatter(x=ore, y=profilo_consumo_weekend, name="Consumo Weekend (kW)", line=dict(color='#636EFA', width=2, dash='dot')))
+        fig.add_trace(go.Scatter(x=ore, y=profilo_produzione, name="Produzione FV (kW)", line=dict(color='#00CC96', width=2)))
+        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), legend=dict(orientation="h", y=1.1), height=300)
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+# ---------------------------------------------------------
+# SCHERMATA 2: ARCHIVIO IMPIANTI SIMULATI
+# ---------------------------------------------------------
+elif menu == "📁 Impianti Simulati (Archivio)":
+    st.title("📁 Archivio Impianti Simulati")
+    simulazioni = carica_simulazioni()
+
+    if not simulazioni:
+        st.info("L'archivio è vuoto. Salva una simulazione nella prima scheda per vederla apparire qui.")
+    else:
+        st.write("Seleziona una simulazione salvata per visualizzare i dettagli o eliminarla.")
+        
+        # Selectbox per scegliere il cliente salvato
+        scelta_cliente = st.selectbox("Seleziona Cliente:", list(simulazioni.keys()))
+        
+        if scelta_cliente:
+            d = simulazioni[scelta_cliente]
+            
+            # Calcoli al volo basati sui dati recuperati dal file salvato
+            ore = np.arange(0, 24)
+            f1_m = d["f1"] / 12
+            f2_m = d["f2"] / 12
+            f3_m = d["f3"] / 12
+
+            p_cons_feriale = np.zeros(24)
+            for h in ore:
+                if 8 <= h < 19: p_cons_feriale[h] = f1_m / 21 / 11 
+                elif (7 <= h < 8) or (19 <= h < 23): p_cons_feriale[h] = f2_m / 21 / 5
+                else: p_cons_feriale[h] = f3_m / 21 / 8
+
+            p_cons_weekend = p_cons_feriale * 0.20
+            p_prod = np.zeros(24)
+            g_medio = (d["kwp"] * d["prod"]) / 365
+            for h in ore:
+                if 6 <= h <= 18:
+                    p_prod[h] = (g_medio / 7.5) * np.sin(np.pi * (h - 6) / 12) ** 2
+
+            autocons_feriale = np.minimum(p_cons_feriale, p_prod)
+            autocons_weekend = np.minimum(p_cons_weekend, p_prod)
+            autocons_a = (np.sum(autocons_feriale) * 261) + (np.sum(autocons_weekend) * 104)
+
+            risp_a = autocons_a * (d["tariffa_c"] - d["tariffa_v"])
+            guad_a = risp_a + d["canone"]
+            tot_a = guad_a * d["durata"]
+
+            # Mostra i risultati economici del cliente selezionato
+            st.markdown("---")
+            st.success(f"### Dati Economici Riservati: {scelta_cliente}")
+            
+            st.info(f"**VANTAGGIO ANNUALE:** € {guad_a:.2f} / anno (Risparmio: € {risp_a:.2f} | Affitto: € {d['canone']:.2f})")
+            st.warning(f"**VANTAGGIO SULLA DURATA ({d['durata']} anni):** € {tot_a:.2f}")
+
+            # Tabella riassuntiva
+            dati_tab_salvata = {
+                "Parametro d'Impianto": ["Potenza FV (kWp)", "Produzione Specifica", "Consumo Annuo F1", "Consumo Annuo F2", "Consumo Annuo F3"],
+                "Valore Impostato": [f"{d['kwp']} kWp", f"{d['prod']} kWh/kWp", f"{d['f1']} kWh", f"{d['f2']} kWh", f"{d['f3']} kWh"]
+            }
+            st.table(pd.DataFrame(dati_tab_salvata))
+
+            # Tasto Elimina all'interno dell'Archivio
+            st.markdown("---")
+            if st.button(f"🗑️ Elimina definitivamente '{scelta_cliente}'", type="secondary", use_container_width=True):
+                elimina_simulazione(scelta_cliente)
+                st.success(f"Impianto '{scelta_cliente}' eliminato correttamente!")
+                st.rerun() # Forza l'app a rinfrescarsi per aggiornare il menu a tendina
