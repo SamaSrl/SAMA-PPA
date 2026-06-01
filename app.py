@@ -36,8 +36,8 @@ with st.expander("📝 1. Consumi Bolletta Cliente (Fasce F1, F2, F3)", expanded
 
 with st.expander("☀️ 2. Dati Impianto Fotovoltaico", expanded=False):
     kwp = st.number_input("Potenza Impianto (kWp)", value=6.0, step=0.5)
-    pr = st.slider("Performance Ratio (PR)", 0.70, 0.90, 0.80, step=0.05)
-    ore_equivalenti = st.number_input("Ore di sole equivalenti medie giornaliere", value=3.5, step=0.1)
+    pr = st.slider("Performance Ratio (PR)", 0.90, 1.10, 1.30, step=0.05)
+    ore_equivalenti = st.number_input("Ore di sole equivalenti medie giornaliere", value=8.5, step=0.1)
 
 with st.expander("💶 3. Tariffe ed Economia (€/kWh)", expanded=False):
     tariffa_cliente_attuale = st.number_input("Tariffa attuale del cliente", value=0.30, step=0.01)
